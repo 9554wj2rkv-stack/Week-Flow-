@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WeekFlow">
+<meta name="theme-color" content="#FFFEF6">
+<meta name="description" content="WeekFlow — a weekly life operating system: work, training, chores and shopping in one calm, local-first planner.">
+<title>WeekFlow</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<style>
+  :root{
+    --bg:#FFFEF6;
+    --ink:#211F17;
+    --ink-soft:#8E8A76;
+    --ink-faint:#C7C2AC;
+    --line:rgba(33,31,23,0.09);
+
+    --training:#FFCE33;
+    --training-ink:#211F17;
+    --training-time:#7A6A1E;
+
+    --home:#B8860B;
+    --home-soft:#FFF6D6;
+
+    --radius:16px;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --font-head:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased; overscroll-behavior-y:none;
+  }
+  :focus-visible{outline:2px solid var(--ink); outline-offset:2px;}
+  #app{max-width:560px; margin:0 auto; min-height:100vh; padding-bottom:calc(var(--safe-bottom) + 40px);}
+  h1,h2,h3{font-family:var(--font-head); font-weight:600; margin:0;}
+  p{margin:0;}
+  button{font-family:inherit; cursor:pointer; background:none; border:none;}
+  input,select,textarea{font-family:inherit;}
+
+  /* ---------- Header ---------- */
+  .header{padding:calc(var(--safe-top) + 22px) 24px 18px 24px;}
+  .wordmark{
+    font-family:var(--font-head); font-weight:700; font-size:12.5px; letter-spacing:2px;
+    color:var(--ink-faint); text-transform:uppercase;
+  }
+  .header h1{font-size:36px; line-height:1.05; margin-top:6px; letter-spacing:-0.3px;}
+  .header-meta{
+    display:flex; align-items:baseline; justify-content:space-between; margin-top:10px; flex-wrap:wrap; gap:6px;
+  }
+  .header-meta .range{font-size:13.5px; color:var(--ink-soft); letter-spacing:0.4px;}
+  .header-meta .traincount{font-size:13.5px; color:var(--training); font-weight:600; letter-spacing:0.4px;}
+  .dotrow{display:flex; gap:14px; align-items:center; margin-top:18px;}
+  .dotrow .d{display:flex; flex-direction:column; align-items:center; gap:6px;}
+  .dotrow .lbl{font-family:var(--font-head); font-size:12.5px; color:var(--ink-faint); font-weight:600;}
+  .dotrow .dot{width:7px; height:7px; border-radius:50%; border:1.4px solid var(--training); background:transparent;}
+  .dotrow .dot.on{background:var(--training);}
+  .editweek{
+    margin-top:16px; font-size:12.5px; color:var(--ink-soft); text-decoration:underline;
+    text-underline-offset:3px; letter-spacing:0.2px;
+  }
+
+  /* ---------- Day panel ---------- */
+  .day{padding:26px 24px 22px 24px; border-top:1px solid var(--line);}
+  .day.p-home{background:var(--home-soft);}
+  .day.p-rest{padding-top:34px; padding-bottom:30px;}
+  .day-head{display:flex; align-items:baseline; justify-content:space-between; cursor:pointer;}
+  .day-head .name{font-family:var(--font-head); font-size:26px; font-weight:700; letter-spacing:-0.2px;}
+  .day.p-rest .day-head .name{font-weight:500; color:var(--ink-soft);}
+  .day-head .date{font-size:13px; color:var(--ink-faint); font-weight:500; margin-left:8px;}
+  .day-head .eyebrow{font-family:var(--font-head); font-size:12.5px; color:var(--home); font-weight:600; letter-spacing:1px;}
+
+  .work-line{font-size:11.5px; color:var(--ink-soft); letter-spacing:0.8px; margin-top:3px; text-transform:uppercase;}
+
+  .train-block.done{opacity:0.55;}
+
+  .tasks{margin-top:16px; display:flex; flex-direction:column;}
+  .task-row{
+    display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line);
+  }
+  .task-row:first-child{border-top:none;}
+  .task-row .mark{font-size:15px; color:var(--ink-soft); width:16px; text-align:center; flex-shrink:0;}
+  .task-row.done .mark{color:var(--ink-faint);}
+  .task-main{flex:1; min-width:0;}
+  .task-row .ttl{font-size:15.5px; color:var(--ink); flex:1;}
+  .task-row.must .ttl{font-weight:600;}
+  .task-row.done .ttl{color:var(--ink-faint); text-decoration:line-through; font-weight:400;}
+  .task-sub{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  .add-row{padding:10px 0 0 26px;}
+  .add-row button{font-size:14px; color:var(--ink-soft); letter-spacing:0.2px;}
+  .add-row button:before{content:'+ '; font-weight:600;}
+  .add-inline{display:flex; gap:8px; padding:8px 0 0 0; align-items:center;}
+  .add-inline input{
+    flex:1; border:none; border-bottom:1.4px solid var(--ink); background:none;
+    font-size:15.5px; padding:4px 2px; color:var(--ink);
+  }
+  .add-inline button{font-size:13.5px; font-weight:600; color:var(--ink);}
+
+  .note-toggle{margin-top:14px; font-size:12px; color:var(--ink-faint); font-style:italic;}
+  .note-box{margin-top:8px;}
+  .note-box textarea{
+    width:100%; border:none; border-bottom:1.2px solid var(--line); background:none;
+    font-size:13.5px; color:var(--ink-soft); padding:4px 2px; resize:none; min-height:36px;
+  }
+
+  /* ---------- Sheets ---------- */
+  .sheet-overlay{
+    position:fixed; inset:0; background:rgba(20,18,14,0.42); display:none; z-index:50;
+    align-items:flex-end; justify-content:center;
+  }
+  .sheet-overlay.open{display:flex;}
+  .sheet{
+    background:var(--bg); width:100%; max-width:560px; border-radius:22px 22px 0 0;
+    max-height:88vh; overflow-y:auto; padding:10px 24px calc(28px + var(--safe-bottom)) 24px;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .sheet{animation:sheetup .2s ease;}
+  }
+  @keyframes sheetup{from{transform:translateY(14px); opacity:0.5;} to{transform:translateY(0); opacity:1;}}
+  .grip{width:36px; height:4px; background:var(--line); border-radius:4px; margin:8px auto 16px auto;}
+  .sheet h2{font-size:26px; margin-bottom:18px;}
+  .field{margin-bottom:20px;}
+  .field .flabel{font-family:var(--font-head); font-size:12.5px; color:var(--ink-faint); letter-spacing:1px; margin-bottom:8px; text-transform:uppercase;}
+  .field input[type=text], .field input[type=time], .field textarea, .field select{
+    width:100%; border:none; border-bottom:1.4px solid var(--line); background:none;
+    font-size:16.5px; padding:6px 2px; color:var(--ink);
+  }
+  .field textarea{resize:vertical; min-height:50px;}
+  .picklist{display:flex; flex-wrap:wrap; gap:2px 16px; font-size:15px;}
+  .picklist span{color:var(--ink-faint); cursor:pointer; padding:4px 0;}
+  .picklist span.sel{color:var(--ink); font-weight:600; text-decoration:underline; text-underline-offset:4px;}
+  .daypick{display:flex; flex-wrap:wrap; gap:2px 14px; font-size:14.5px; font-family:var(--font-head); letter-spacing:0.3px;}
+  .daypick span{color:var(--ink-faint); cursor:pointer; padding:4px 0;}
+  .daypick span.sel{color:var(--ink); font-weight:700; text-decoration:underline; text-underline-offset:4px;}
+  .sheet-actions{display:flex; flex-direction:column; gap:10px; margin-top:8px;}
+  .btn-main{
+    padding:15px; border-radius:13px; background:var(--ink); color:var(--bg);
+    font-size:15.5px; font-weight:700; text-align:center;
+  }
+  .btn-plain{padding:8px 0; font-size:13.5px; color:var(--ink-soft); text-align:center; text-decoration:underline; text-underline-offset:3px;}
+  .btn-plain.danger{color:#8B3A2B;}
+
+  .toast{
+    position:fixed; bottom:calc(28px + var(--safe-bottom)); left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:100px; font-size:13px;
+    font-weight:500; z-index:60; opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .toast.show{opacity:1;}
+
+  /* ---------- Routine-aware additions ---------- */
+  .recur{color:var(--ink-faint); font-size:12px; font-weight:400; margin-left:2px;}
+  .ttl, .train-block .label, .work-line{cursor:pointer;}
+  .train-block{
+    background:var(--training); color:var(--training-ink); border-radius:14px;
+    padding:14px 18px; margin-top:14px; display:flex; align-items:center; gap:12px;
+  }
+  .train-block .check{font-size:15px; opacity:0.55; width:16px; text-align:center; flex-shrink:0;}
+  .train-block .label{flex:1; font-family:var(--font-head); font-size:21px; font-weight:700; letter-spacing:-0.1px;}
+  .train-block .time{font-size:12.5px; color:var(--training-time); font-weight:500; flex-shrink:0;}
+
+  .routine-day{margin-bottom:22px;}
+  .routine-day h4{font-family:var(--font-head); font-size:12.5px; color:var(--ink-faint); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; font-weight:700;}
+  .chore-pick{display:flex; flex-direction:column; margin-bottom:6px;}
+  .chore-row{text-align:left; padding:12px 0; border-top:1px solid var(--line); font-size:15.5px; color:var(--ink); width:100%;}
+  .chore-row:first-child{border-top:none;}
+
+  /* ---------- Shopping list ---------- */
+  .shop-section-wrap{padding:22px 24px 30px 24px; border-top:1px solid var(--line);}
+  .shop-switch{display:flex; gap:18px; margin:4px 0 16px 0; border-bottom:1px solid var(--line); padding-bottom:10px;}
+  .shop-switch button{font-family:var(--font-head); font-size:14px; font-weight:600; color:var(--ink-faint);}
+  .shop-switch button.sel{color:var(--ink); text-decoration:underline; text-underline-offset:4px;}
+  .shop-search{width:100%; border:none; border-bottom:1.4px solid var(--line); background:none; font-size:15px; padding:8px 2px; margin-bottom:14px; color:var(--ink);}
+  .shop-group{margin-bottom:18px;}
+  .shop-group h4{font-family:var(--font-head); font-size:12px; color:var(--ink-faint); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; font-weight:700;}
+  .shop-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line);}
+  .shop-row:first-child{border-top:none;}
+  .shop-row.done{opacity:0.5;}
+  .shop-mark{font-size:15px; color:var(--ink-soft); width:16px; text-align:center; flex-shrink:0;}
+  .shop-mark.on{color:var(--training);}
+  .shop-name{flex:1; font-size:15px; color:var(--ink);}
+  .shop-row.done .shop-name{text-decoration:line-through; color:var(--ink-faint);}
+  .shop-edit{font-size:11.5px; color:var(--ink-faint); text-decoration:underline; text-underline-offset:2px; flex-shrink:0;}
+
+  /* ---------- Section tabs ---------- */
+  .sectiontabs{display:flex; padding:4px 24px 0 24px; border-bottom:1px solid var(--line);}
+  .sectiontabs button{
+    flex:1; font-family:var(--font-head); font-size:13.5px; font-weight:600; color:var(--ink-faint);
+    padding-bottom:11px; white-space:nowrap; border-bottom:2.5px solid transparent; text-align:center;
+    letter-spacing:0.1px;
+  }
+  .sectiontabs button.active{color:var(--ink); border-bottom-color:var(--training);}
+
+  /* ---------- Month overview ---------- */
+  .month-wrap{padding:22px 24px 30px 24px; border-top:1px solid var(--line);}
+  .month-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+  .month-grid.dow{margin-bottom:8px;}
+  .month-dow{text-align:center; font-family:var(--font-head); font-size:11.5px; color:var(--ink-faint); font-weight:700;}
+  .month-cell{aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:10px;}
+  .month-cell.empty{visibility:hidden;}
+  .month-cell .num{font-size:14px; color:var(--ink);}
+  .month-cell.today{background:var(--training);}
+  .month-cell.today .num{color:var(--training-ink); font-weight:700;}
+  .month-cell.thisweek:not(.today){background:var(--home-soft);}
+  .month-cell .dot{width:5px; height:5px; border-radius:50%; background:var(--training);}
+  .month-cell.today .dot{background:var(--training-ink);}
+  .routine-item{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-top:1px solid var(--line); font-size:15px;}
+  .routine-item:first-child{border-top:none;}
+  .routine-item.inactive .rtitle{color:var(--ink-faint); text-decoration:line-through;}
+  .routine-item .rtitle{flex:1;}
+  .add-routine{display:block; font-size:13.5px; color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px; margin-top:4px;}
+  .toggle{width:34px; height:20px; border-radius:12px; background:var(--line); position:relative; flex-shrink:0;}
+  .toggle.on{background:var(--training);}
+  .toggle .knob{position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .15s ease;}
+  .toggle.on .knob{left:16px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheetOverlay" class="sheet-overlay"><div class="sheet" id="sheetContent"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+/* =====================================================================
+   WEEKFLOW — a weekly life operating system (editorial redesign)
+   Single file, local-first. Simple functionality, strong visual hierarchy.
+   Chores live in a reusable list — you place them onto a day from + Add.
+   Nothing is auto-scheduled; nothing is locked to a day.
+   ===================================================================== */
+
+const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAY_SHORT = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+const CATEGORIES = ['Home','Laundry','Food','Shopping','Errand','Recovery','Personal','Appointment','Business / Project','Other'];
+const IMPORTANCE = [{k:'must',label:'Must'},{k:'should',label:'Should'},{k:'could',label:'Could'}];
+const DURATIONS = [10,15,30,45,60,90];
+const STORE_KEY = 'weekflow_state_v2';
+const OLD_STORE_KEY = 'weekflow_state_v1';
+
+const DEFAULT_TEMPLATE = {
+  work: { days:[0,1,2,3,4], start:'08:00', end:'15:00' },
+  training: [
+    { day:1, label:'Leg Day',            duration:75 },
+    { day:2, label:'Upper Body',         duration:75 },
+    { day:3, label:'Endurance Training', duration:90 },
+    { day:6, label:'Long Training',      duration:120 }
+  ]
+};
+
+const DEFAULT_CHORES = [
+  'Laundry','Change bedsheets','Finance check-in','Call Mum','Call Sister','Call Dad',
+  'Food shopping','Cleaning','Vitamin top-up','Call Brother','Vitamin check-in','Call Friend'
+];
+
+const SHOP_CATEGORIES = [
+  {key:'produce',   label:'Produce / Fresh'},
+  {key:'protein',   label:'Protein / Refrigerated'},
+  {key:'pantry',    label:'Pantry'},
+  {key:'drinks',    label:'Drinks'},
+  {key:'coffee',    label:'Coffee'},
+  {key:'household', label:'Household'},
+  {key:'other',     label:'Other / Custom'}
+];
+const DEFAULT_SHOPPING_LIST = [
+  ['produce',   ['Agurke','Æbler','Løg / rødløg','Hvidløg','Forårsløg','Gulerødder','Salat','Mix salat pose','Kartofler','Banan øko','Avocado','Ananas']],
+  ['protein',   ['Kylling','Pålæg','Yoghurt','Smør']],
+  ['pantry',    ['Tun i vand','Sardiner','Makrel','Ris / Änglamark','Øko havregryn / Änglamark','Havregryn glutenfri','Riskager','Rugbrød','Remo / mayo','Pommes','Bagekartofler','Husk']],
+  ['drinks',    ['Tonic','Demi vand','Sparkling water','Pepsi']],
+  ['coffee',    ['Kaffe John','Kaffe Ausa']],
+  ['household', ['WC-papir']],
+  ['other',     ['Elektro','Kylling AJ']]
+];
+
+/* ---------------------- utils ---------------------- */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayIndex(){ const js=new Date().getDay(); return js===0?6:js-1; }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtMin(m){ if(!m) return ''; if(m<60) return m+' min'; const h=Math.floor(m/60), r=m%60; return r?(h+'h '+r+'m'):(h+'h'); }
+function mondayOfWeek(){ const now=new Date(); const idx=todayIndex(); const d=new Date(now); d.setDate(now.getDate()-idx); d.setHours(0,0,0,0); return d; }
+function dateForDay(day){ const mon=mondayOfWeek(); const d=new Date(mon); d.setDate(mon.getDate()+day); return d; }
+function weekRangeLabel(){
+  const mon=mondayOfWeek(); const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const mMon=mon.toLocaleString('en-US',{month:'short'}).toUpperCase();
+  const mSun=sun.toLocaleString('en-US',{month:'short'}).toUpperCase();
+  return mMon===mSun ? `${mMon} ${mon.getDate()} – ${sun.getDate()}` : `${mMon} ${mon.getDate()} – ${mSun} ${sun.getDate()}`;
+}
+
+/* ---------------------- state ---------------------- */
+let state = null;
+
+function ensureTemplateIds(template){
+  template.training.forEach(t=>{ if(!t.id) t.id = uid(); });
+}
+function makeDefaultChores(){
+  return DEFAULT_CHORES.map(title=>({ id:uid(), title, active:true }));
+}
+function makeDefaultShoppingList(){
+  let sort=0; const items=[];
+  DEFAULT_SHOPPING_LIST.forEach(([cat,names])=>{
+    names.forEach(name=>{ items.push({ id:uid(), name, category:cat, active:true, sortOrder:sort++ }); });
+  });
+  return items;
+}
+function genFixed(t){ return t.work.days.map(d=>({id:uid(), day:d, label:'Work', start:t.work.start, end:t.work.end})); }
+function genTraining(t){ return t.training.map(x=>({id:uid(), tplId:x.id, day:x.day, label:x.label, duration:x.duration, completed:false})); }
+function buildWeek(monday, carryTasks){
+  return { weekStart:monday, fixed:genFixed(state.template), training:genTraining(state.template),
+    tasks:[...(carryTasks||[])], notes:{} };
+}
+
+function migrateFromV1(){
+  try{
+    const raw = localStorage.getItem(OLD_STORE_KEY);
+    if(!raw) return null;
+    const old = JSON.parse(raw);
+    const template = old.template || DEFAULT_TEMPLATE;
+    const tasks = (old.currentWeek && old.currentWeek.tasks || []).map(t=>({
+      id:t.id||uid(), title:t.title, day:t.day, completed:!!t.completed, source:'manual',
+      importance:t.importance||'should', duration:t.duration||null, time:t.time||null,
+      category:t.category||null, notes:t.notes||'', createdAt:t.createdAt||Date.now()
+    }));
+    return { template, currentWeek: { tasks } };
+  }catch(e){ return null; }
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    state = raw ? JSON.parse(raw) : (migrateFromV1() || null);
+  }catch(e){ state = null; }
+  if(!state) state = { template: JSON.parse(JSON.stringify(DEFAULT_TEMPLATE)), currentWeek: null };
+  if(!state.template) state.template = JSON.parse(JSON.stringify(DEFAULT_TEMPLATE));
+  ensureTemplateIds(state.template);
+
+  // chores: a flat, placeable list — no day, no auto-generation
+  if(!state.routine) state.routine = makeDefaultChores();
+  else state.routine = state.routine.map(r=>({ id:r.id||uid(), title:r.title, active:r.active!==false }));
+
+  // shopping: a permanent master list + one active trip (selected/purchased), independent of weekly reset
+  if(!state.shopping) state.shopping = { masterItems: makeDefaultShoppingList(), trip: {} };
+  if(!state.shopping.masterItems) state.shopping.masterItems = makeDefaultShoppingList();
+  if(!state.shopping.trip) state.shopping.trip = {};
+
+  const thisMonday = mondayOfWeek().toISOString().slice(0,10);
+  if(!state.currentWeek){
+    state.currentWeek = buildWeek(thisMonday, []);
+  } else if(!('weekStart' in state.currentWeek)){
+    // upgrading from an older version — keep existing tasks once, going forward weeks reset clean
+    const carry = (state.currentWeek.tasks||[]).map(t=>({...t, id:t.id||uid()}));
+    state.currentWeek = buildWeek(thisMonday, carry);
+  } else if(state.currentWeek.weekStart !== thisMonday){
+    // a real new week — anchors regenerate; placed chores and one-offs don't carry, you place fresh from the list
+    state.currentWeek = buildWeek(thisMonday, []);
+  } else if(!state.currentWeek.notes){
+    state.currentWeek.notes = {};
+  }
+  saveState();
+}
+function saveState(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ---------------------- derived ---------------------- */
+function tasksForDay(day){ return state.currentWeek.tasks.filter(t=>t.day===day); }
+function fixedForDay(day){ return state.currentWeek.fixed.filter(f=>f.day===day); }
+function trainingForDay(day){ return state.currentWeek.training.filter(t=>t.day===day); }
+function personality(day){
+  if(trainingForDay(day).length) return 'training';
+  if(day===0) return 'home';
+  if(day===5) return 'home';
+  if(day===4) return 'rest';
+  return 'plain';
+}
+function dayEyebrow(day){
+  if(day===0) return 'HOME DAY';
+  if(day===5) return 'HOME · LIFE';
+  return '';
+}
+function isShoppingTask(task){ return !!(task.title && task.title.trim().toLowerCase()==='food shopping'); }
+function shoppingProgress(){
+  const entries = Object.values(state.shopping.trip).filter(v=>v.selected);
+  return { total: entries.length, done: entries.filter(v=>v.purchased).length };
+}
+
+/* ---------------------- mutations ---------------------- */
+function addTask(data){
+  state.currentWeek.tasks.push({
+    id:uid(), title:data.title, day:data.day, completed:false, source:'manual',
+    importance:data.importance||'should', duration:data.duration||null, time:data.time||null,
+    category:data.category||null, notes:data.notes||'', createdAt:Date.now()
+  });
+  saveState();
+}
+function placeChore(choreId, day){
+  const c = state.routine.find(x=>x.id===choreId);
+  if(!c) return;
+  state.currentWeek.tasks.push({
+    id:uid(), routineId:c.id, title:c.title, day, completed:false, source:'routine',
+    importance:'should', duration:null, time:null, category:null, notes:'', createdAt:Date.now()
+  });
+  saveState();
+}
+function updateTask(id, patch){ const t=state.currentWeek.tasks.find(x=>x.id===id); if(t) Object.assign(t,patch); saveState(); }
+function toggleTask(id){ const t=state.currentWeek.tasks.find(x=>x.id===id); if(t) t.completed=!t.completed; saveState(); }
+function moveTask(id, day){ updateTask(id, {day}); }
+function deleteTask(id){ state.currentWeek.tasks = state.currentWeek.tasks.filter(x=>x.id!==id); saveState(); }
+function toggleTrainingDone(id){ const t=state.currentWeek.training.find(x=>x.id===id); if(t) t.completed=!t.completed; saveState(); }
+function setNote(day, text){ state.currentWeek.notes[day]=text; saveState(); }
+
+/* ---------------------- view state ---------------------- */
+let section = 'today';
+let openNoteDay = null;
+let editingTaskId = null;
+let sheetState = {};
+
+let toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1700);
+}
+function openSheet(html){
+  document.getElementById('sheetContent').innerHTML = '<div class="grip"></div>'+html;
+  document.getElementById('sheetOverlay').classList.add('open');
+}
+function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); editingTaskId=null; }
+document.getElementById('sheetOverlay').addEventListener('click', e=>{ if(e.target.id==='sheetOverlay') closeSheet(); });
+
+/* ---------------------- render: header ---------------------- */
+function renderSectionTabs(){
+  const secs = [{k:'today',label:'Today'},{k:'week',label:'Week'},{k:'month',label:'Month'},{k:'shopping',label:'Shopping'},{k:'notes',label:'Notes'}];
+  return `<div class="sectiontabs">${secs.map(s=>`<button class="${section===s.k?'active':''}" data-act="switch-section" data-sec="${s.k}">${s.label}</button>`).join('')}</div>`;
+}
+function renderHeader(){
+  if(section==='today'){
+    const d = dateForDay(todayIndex());
+    const full = d.toLocaleString('en-US',{weekday:'long', month:'long', day:'numeric'});
+    return `<div class="header"><div class="wordmark">WeekFlow</div><h1>Today</h1>
+      <div class="header-meta"><span class="range">${full}</span></div></div>`;
+  }
+  if(section==='notes'){
+    return `<div class="header"><div class="wordmark">WeekFlow</div><h1>Notes</h1>
+      <div class="header-meta"><span class="range">${weekRangeLabel()}</span></div></div>`;
+  }
+  if(section==='month'){
+    const label = new Date().toLocaleString('en-US',{month:'long', year:'numeric'});
+    return `<div class="header"><div class="wordmark">WeekFlow</div><h1>This Month</h1>
+      <div class="header-meta"><span class="range">${label}</span></div></div>`;
+  }
+  if(section==='shopping'){
+    const prog = shoppingProgress();
+    const sub = prog.total ? `${prog.done} / ${prog.total} purchased` : 'Nothing selected yet';
+    return `<div class="header"><div class="wordmark">WeekFlow</div><h1>Food Shopping</h1>
+      <div class="header-meta"><span class="range">${sub}</span></div></div>`;
+  }
+  const trainDays = new Set(state.currentWeek.training.map(t=>t.day));
+  const dots = DAY_SHORT.map((d,i)=>`
+    <div class="d"><span class="lbl">${d[0]}</span><span class="dot ${trainDays.has(i)?'on':''}"></span></div>
+  `).join('');
+  return `
+  <div class="header">
+    <div class="wordmark">WeekFlow</div>
+    <h1>My Week</h1>
+    <div class="header-meta">
+      <span class="range">${weekRangeLabel()}</span>
+      <span class="traincount">${state.currentWeek.training.length} TRAINING DAYS</span>
+    </div>
+    <div class="dotrow">${dots}</div>
+    <div style="display:flex; gap:20px; margin-top:16px;">
+      <button class="editweek" data-act="edit-week" style="margin-top:0;">Edit week</button>
+      <button class="editweek" data-act="open-routine" style="margin-top:0;">Chores</button>
+    </div>
+  </div>`;
+}
+
+/* ---------------------- render: day panel ---------------------- */
+function renderDay(day){
+  const p = personality(day);
+  const eyebrow = dayEyebrow(day);
+  const work = fixedForDay(day)[0];
+  const trainings = trainingForDay(day);
+  const tasks = tasksForDay(day).sort((a,b)=>a.completed-b.completed);
+  const date = dateForDay(day);
+
+  let head = `
+    <div class="day-head" data-act="toggle-note" data-day="${day}">
+      <div>
+        <span class="name">${DAY_NAMES[day]}</span><span class="date">${date.getDate()}</span>
+        ${eyebrow? `<div class="eyebrow">${eyebrow}</div>` : ''}
+      </div>
+    </div>
+    ${work? `<div class="work-line" data-act="work-action" data-day="${day}">${work.start}–${work.end} Work</div>` : ''}
+  `;
+
+  let trainHtml = trainings.map(t=>`
+    <div class="train-block ${t.completed?'done':''}">
+      <span class="check" data-act="toggle-training" data-id="${t.id}">${t.completed?'✓':'○'}</span>
+      <span class="label" data-act="training-action" data-id="${t.id}">${esc(t.label)}</span>
+      <span class="time">${fmtMin(t.duration)}</span>
+    </div>
+  `).join('');
+
+  let taskHtml = tasks.map(t=>{
+    let sub = '';
+    if(isShoppingTask(t)){
+      const prog = shoppingProgress();
+      if(prog.total>0) sub = (prog.done===prog.total) ? `${prog.done} / ${prog.total} ✓` : `${prog.total} item${prog.total===1?'':'s'}`;
+    }
+    return `<div class="task-row ${t.completed?'done':''} ${t.importance==='must'?'must':''}">
+      <span class="mark" data-act="toggle-task" data-id="${t.id}">${t.completed?'✓':'○'}</span>
+      <div class="task-main" data-act="task-action" data-id="${t.id}">
+        <span class="ttl">${esc(t.title)}${t.source==='routine'?' <span class="recur">↻</span>':''}</span>
+        ${sub? `<div class="task-sub">${sub}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const addHtml = `<div class="add-row"><button data-act="open-add-sheet" data-day="${day}">Add</button></div>`;
+
+  let noteHtml = '';
+  const note = state.currentWeek.notes[day];
+  if(openNoteDay===day){
+    noteHtml = `<div class="note-box"><textarea class="note-input" data-day="${day}" placeholder="Note for the day…">${esc(note||'')}</textarea></div>`;
+  } else if(note){
+    noteHtml = `<div class="note-toggle" data-act="toggle-note" data-day="${day}">${esc(note)}</div>`;
+  }
+
+  return `<div class="day p-${p}">
+    ${head}
+    ${trainHtml}
+    <div class="tasks">${taskHtml}</div>
+    ${addHtml}
+    ${noteHtml}
+  </div>`;
+}
+
+/* ---------------------- render: Notes section ---------------------- */
+function renderNotesSection(){
+  let html = '';
+  for(let d=0; d<7; d++){
+    const note = state.currentWeek.notes[d] || '';
+    html += `<div class="day">
+      <div class="day-head"><div><span class="name">${DAY_NAMES[d]}</span></div></div>
+      <div class="note-box"><textarea class="note-input" data-day="${d}" placeholder="Note for ${DAY_NAMES[d]}…">${esc(note)}</textarea></div>
+    </div>`;
+  }
+  return html;
+}
+
+/* ---------------------- render: Month section ---------------------- */
+function renderMonthSection(){
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const firstWeekday = (firstOfMonth.getDay()+6)%7;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const trainingWeekdays = new Set(state.template.training.map(t=>t.day));
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  const monday = mondayOfWeek();
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+
+  let cells = '';
+  for(let i=0;i<firstWeekday;i++) cells += `<div class="month-cell empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const cellDate = new Date(year, month, day);
+    const weekday = (cellDate.getDay()+6)%7;
+    const isToday = cellDate.getTime()===todayDate.getTime();
+    const inCurrentWeek = cellDate>=monday && cellDate<=sunday;
+    const isTraining = trainingWeekdays.has(weekday);
+    cells += `<div class="month-cell ${isToday?'today':''} ${inCurrentWeek?'thisweek':''}">
+      <span class="num">${day}</span>
+      ${isTraining? `<span class="dot"></span>` : ''}
+    </div>`;
+  }
+  const dowRow = DAY_SHORT.map(d=>`<div class="month-dow">${d[0]}</div>`).join('');
+  return `<div class="month-wrap">
+    <div class="month-grid dow">${dowRow}</div>
+    <div class="month-grid">${cells}</div>
+  </div>`;
+}
+
+/* ---------------------- render: root ---------------------- */
+function render(){
+  let html = renderHeader() + renderSectionTabs();
+  if(section==='today') html += renderDay(todayIndex());
+  else if(section==='week') for(let d=0; d<7; d++) html += renderDay(d);
+  else if(section==='notes') html += renderNotesSection();
+  else if(section==='month') html += renderMonthSection();
+  else if(section==='shopping') html += renderShoppingSection();
+
+  document.getElementById('app').innerHTML = html;
+  document.querySelectorAll('.note-input').forEach(el=>{
+    el.addEventListener('blur', ()=> setNote(parseInt(el.dataset.day,10), el.value));
+  });
+  const shopSearchInput = document.getElementById('shopSearch');
+  if(shopSearchInput){
+    shopSearchInput.addEventListener('input', ()=>{
+      shopSectionSearch = shopSearchInput.value;
+      document.getElementById('shopItemsList').innerHTML = shopItemsListHtml(shopSectionSearch);
+    });
+  }
+}
+
+/* ---------------------- add sheet: type new, or place from your list ---------------------- */
+function openAddSheet(day){
+  sheetState = { addDay: day };
+  const placedIds = new Set(tasksForDay(day).filter(t=>t.routineId).map(t=>t.routineId));
+  const available = state.routine.filter(r=>r.active && !placedIds.has(r.id));
+
+  openSheet(`
+    <h2>Add to ${DAY_NAMES[day]}</h2>
+    <div class="add-inline" style="margin-bottom:20px;">
+      <input type="text" id="quickAddInput" placeholder="Add something else…">
+      <button data-act="quick-add-confirm">Add</button>
+    </div>
+    ${available.length? `
+      <div class="flabel" style="margin-bottom:4px;">FROM YOUR LIST</div>
+      <div class="chore-pick">
+        ${available.map(r=>`<button class="chore-row" data-act="place-chore" data-id="${r.id}">${esc(r.title)}</button>`).join('')}
+      </div>
+    ` : ''}
+    <button class="add-routine" data-act="manage-chores" style="margin-top:18px;">Manage my list</button>
+  `);
+  const input = document.getElementById('quickAddInput');
+  input.focus();
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') confirmQuickAdd(); });
+}
+function confirmQuickAdd(){
+  const input = document.getElementById('quickAddInput');
+  const title = input ? input.value.trim() : '';
+  if(!title) return;
+  addTask({title, day: sheetState.addDay});
+  closeSheet(); render(); toast('Added');
+}
+
+/* ---------------------- task move / delete / edit ---------------------- */
+function openTaskActionSheet(task){
+  sheetState = { moveTaskId: task.id };
+  const dayGrid = DAY_SHORT.map((d,i)=>`<span data-pick="movetarget" data-val="${i}" class="${task.day===i?'sel':''}">${d}</span>`).join('');
+  const shopBtn = isShoppingTask(task) ? `<button class="btn-main" data-act="open-shopping" style="margin-bottom:16px;">Open shopping list</button>` : '';
+  openSheet(`
+    <h2>${esc(task.title)}</h2>
+    ${shopBtn}
+    <div class="field"><div class="flabel">Move to</div><div class="daypick">${dayGrid}</div></div>
+    <div class="sheet-actions">
+      <button class="btn-plain" data-act="edit-task-full" data-id="${task.id}">Edit details</button>
+      <button class="btn-plain danger" data-act="delete-task-flow" data-id="${task.id}">Delete</button>
+    </div>
+  `);
+}
+function openTaskSheet(existing){
+  editingTaskId = existing.id;
+  sheetState = { importance:existing.importance, day:existing.day, duration:existing.duration };
+  const catOptions = ['<option value="">No category</option>'].concat(
+    CATEGORIES.map(c=>`<option value="${c}" ${existing.category===c?'selected':''}>${c}</option>`)
+  ).join('');
+  const impList = IMPORTANCE.map(i=>`<span data-pick="importance" data-val="${i.k}" class="${existing.importance===i.k?'sel':''}">${i.label}</span>`).join('');
+  const durList = DURATIONS.map(d=>`<span data-pick="duration" data-val="${d}" class="${existing.duration===d?'sel':''}">${fmtMin(d)}</span>`).join('');
+  const dayList = DAY_SHORT.map((d,i)=>`<span data-pick="day" data-val="${i}" class="${existing.day===i?'sel':''}">${d}</span>`).join('');
+
+  openSheet(`
+    <h2>Edit task</h2>
+    <div class="field"><div class="flabel">Title</div><input type="text" id="f-title" value="${esc(existing.title)}"></div>
+    <div class="field"><div class="flabel">Importance</div><div class="picklist">${impList}</div></div>
+    <div class="field"><div class="flabel">Day</div><div class="daypick">${dayList}</div></div>
+    <div class="field"><div class="flabel">Duration</div><div class="picklist">${durList}</div></div>
+    <div class="field"><div class="flabel">Time (optional)</div><input type="time" id="f-time" value="${existing.time||''}"></div>
+    <div class="field"><div class="flabel">Category</div><select id="f-category">${catOptions}</select></div>
+    <div class="field"><div class="flabel">Notes</div><textarea id="f-notes">${esc(existing.notes||'')}</textarea></div>
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="save-task">Save</button>
+      <button class="btn-plain danger" data-act="delete-task-flow" data-id="${existing.id}">Delete task</button>
+      <button class="btn-plain" data-act="close-sheet">Cancel</button>
+    </div>
+  `);
+}
+function saveTaskFromSheet(){
+  const title = document.getElementById('f-title').value.trim();
+  if(!title){ toast('Give it a title'); return; }
+  const category = document.getElementById('f-category').value || null;
+  const notes = document.getElementById('f-notes').value;
+  const time = document.getElementById('f-time').value || null;
+  updateTask(editingTaskId, { title, category, notes, time, importance:sheetState.importance, day:sheetState.day, duration:sheetState.duration||null });
+  closeSheet(); render(); toast('Saved');
+}
+
+/* ---------------------- training move flow (anchors keep their default-day dialog) ---------------------- */
+function openTrainingActionSheet(trId){
+  const tr = state.currentWeek.training.find(x=>x.id===trId);
+  sheetState = { moveTrainingId: trId };
+  const dayGrid = DAY_SHORT.map((d,i)=>`<span data-pick="movetrain" data-val="${i}" class="${tr.day===i?'sel':''}">${d}</span>`).join('');
+  openSheet(`
+    <h2>${esc(tr.label)}</h2>
+    <div class="field"><div class="flabel">Move to</div><div class="daypick">${dayGrid}</div></div>
+    <div class="sheet-actions"><button class="btn-plain" data-act="close-sheet">Cancel</button></div>
+  `);
+}
+function openTrainMoveConfirm(trId, newDay){
+  const tr = state.currentWeek.training.find(x=>x.id===trId);
+  sheetState = { moveTrainingId:trId, moveDay:newDay };
+  openSheet(`
+    <h2>Move to ${DAY_NAMES[newDay]}</h2>
+    <p style="font-size:13.5px; color:var(--ink-soft); margin-bottom:16px;">"${esc(tr.label)}" is normally on ${DAY_NAMES[tr.day]}.</p>
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="train-this-week">This week only</button>
+      <button class="btn-plain" data-act="train-change-default">Change default schedule — always ${DAY_NAMES[newDay]}</button>
+      <button class="btn-plain" data-act="close-sheet">Cancel</button>
+    </div>
+  `);
+}
+
+/* ---------------------- work sheet ---------------------- */
+function openWorkSheet(day){
+  sheetState = { workDay: day };
+  const working = !!fixedForDay(day)[0];
+  openSheet(`
+    <h2>${DAY_NAMES[day]}</h2>
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="toggle-work-today">${working? 'Skip work this day — this week only' : 'Restore work this day — this week only'}</button>
+      <button class="btn-plain" data-act="open-edit-week-from-work">Change default schedule</button>
+      <button class="btn-plain" data-act="close-sheet">Cancel</button>
+    </div>
+  `);
+}
+
+/* ---------------------- edit week sheet ---------------------- */
+function openEditWeekSheet(){
+  const w = state.template.work;
+  sheetState = { workDays:[...w.days], trainingDays: state.template.training.map(t=>t.day) };
+  const workDayPick = DAY_SHORT.map((d,i)=>`<span data-pick="workday" data-val="${i}" class="${w.days.includes(i)?'sel':''}">${d}</span>`).join('');
+  const trainingRows = state.template.training.map((t,idx)=>`
+    <div class="field">
+      <div class="flabel">Training ${idx+1}</div>
+      <input type="text" id="tr-label-${idx}" value="${esc(t.label)}" style="margin-bottom:8px;">
+      <div class="daypick" style="margin-bottom:8px;">
+        ${DAY_SHORT.map((d,i)=>`<span data-pick="trday" data-idx="${idx}" data-val="${i}" class="${t.day===i?'sel':''}">${d}</span>`).join('')}
+      </div>
+      <input type="text" inputmode="numeric" id="tr-dur-${idx}" value="${t.duration}" placeholder="Minutes">
+    </div>
+  `).join('');
+
+  openSheet(`
+    <h2>Edit week</h2>
+    <div class="field"><div class="flabel">Work hours</div>
+      <input type="time" id="w-start" value="${w.start}" style="margin-bottom:8px;">
+      <input type="time" id="w-end" value="${w.end}">
+    </div>
+    <div class="field"><div class="flabel">Work days</div><div class="daypick">${workDayPick}</div></div>
+    ${trainingRows}
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="save-week">Save</button>
+      <button class="btn-plain" data-act="close-sheet">Cancel</button>
+    </div>
+  `);
+}
+function saveWeekFromSheet(){
+  const start = document.getElementById('w-start').value || '08:00';
+  const end = document.getElementById('w-end').value || '15:00';
+  state.template.work = { days: sheetState.workDays.slice().sort(), start, end };
+  state.template.training = state.template.training.map((t,idx)=>{
+    const label = document.getElementById('tr-label-'+idx).value.trim() || t.label;
+    const duration = parseInt(document.getElementById('tr-dur-'+idx).value,10) || t.duration;
+    const day = sheetState.trainingDays[idx];
+    return { id:t.id, label, duration, day };
+  });
+  state.currentWeek.fixed = genFixed(state.template);
+  const oldTraining = state.currentWeek.training;
+  state.currentWeek.training = state.template.training.map(t=>{
+    const prev = oldTraining.find(o=>o.tplId===t.id);
+    return { id: prev? prev.id : uid(), tplId:t.id, day:t.day, label:t.label, duration:t.duration, completed: prev? prev.completed : false };
+  });
+  saveState(); closeSheet(); render(); toast('Week updated');
+}
+
+/* ---------------------- Shopping (its own section) ---------------------- */
+let shopSectionTab = 'all';
+let shopSectionSearch = '';
+
+function shopItemsListHtml(search){
+  const q = (search||'').toLowerCase();
+  let body = '';
+  SHOP_CATEGORIES.forEach(cat=>{
+    const items = state.shopping.masterItems.filter(m=> m.active && m.category===cat.key && (!q || m.name.toLowerCase().includes(q)));
+    if(items.length===0) return;
+    body += `<div class="shop-group"><h4>${cat.label}</h4>`;
+    items.forEach(m=>{
+      const sel = !!(state.shopping.trip[m.id] && state.shopping.trip[m.id].selected);
+      body += `<div class="shop-row" data-act="toggle-selected" data-id="${m.id}">
+        <span class="shop-mark ${sel?'on':''}">${sel?'●':'○'}</span>
+        <span class="shop-name">${esc(m.name)}</span>
+        <button class="shop-edit" data-act="edit-master-item" data-id="${m.id}">edit</button>
+      </div>`;
+    });
+    body += `</div>`;
+  });
+  if(!body) body = `<p class="empty-hint">No matches.</p>`;
+  return body;
+}
+function renderShoppingSection(){
+  const tab = shopSectionTab;
+  const prog = shoppingProgress();
+  const switcher = `<div class="shop-switch">
+    <button class="${tab==='all'?'sel':''}" data-act="shop-tab" data-tab="all">All items</button>
+    <button class="${tab==='trip'?'sel':''}" data-act="shop-tab" data-tab="trip">This shop${prog.total?` (${prog.total})`:''}</button>
+  </div>`;
+
+  let body;
+  if(tab==='all'){
+    body = `
+      <input type="text" class="shop-search" id="shopSearch" placeholder="Search shopping list…" value="${esc(shopSectionSearch)}">
+      <div id="shopItemsList">${shopItemsListHtml(shopSectionSearch)}</div>
+      <button class="add-routine" data-act="add-master-item" style="margin-top:14px;">+ Add item</button>
+    `;
+  } else {
+    const tripItems = state.shopping.masterItems
+      .filter(m=> state.shopping.trip[m.id] && state.shopping.trip[m.id].selected)
+      .sort((a,b)=> (state.shopping.trip[a.id].purchased?1:0) - (state.shopping.trip[b.id].purchased?1:0));
+    if(tripItems.length===0){
+      body = `<p class="empty-hint">Nothing selected yet — switch to All items and tap what you need.</p>`;
+    } else {
+      body = tripItems.map(m=>{
+        const st = state.shopping.trip[m.id];
+        return `<div class="shop-row ${st.purchased?'done':''}" data-act="toggle-purchased" data-id="${m.id}">
+          <span class="shop-mark ${st.purchased?'on':''}">${st.purchased?'✓':'□'}</span>
+          <span class="shop-name">${esc(m.name)}</span>
+        </div>`;
+      }).join('') + `<button class="btn-main" data-act="finish-shopping" style="margin-top:20px;">Finish shopping</button>`;
+    }
+  }
+
+  return `<div class="shop-section-wrap">${switcher}${body}</div>`;
+}
+function openMasterItemSheet(existing){
+  sheetState.editingMasterId = existing? existing.id : null;
+  const catOptions = SHOP_CATEGORIES.map(c=>`<option value="${c.key}" ${existing&&existing.category===c.key?'selected':''}>${c.label}</option>`).join('');
+  openSheet(`
+    <h2>${existing? 'Edit item' : 'New item'}</h2>
+    <div class="field"><div class="flabel">Name</div><input type="text" id="mi-name" value="${existing?esc(existing.name):''}"></div>
+    <div class="field"><div class="flabel">Category (optional)</div><select id="mi-category">${catOptions}</select></div>
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="save-master-item">Save</button>
+      ${existing? `<button class="btn-plain danger" data-act="delete-master-item" data-id="${existing.id}">Delete</button>` : ''}
+      <button class="btn-plain" data-act="close-sheet">Back</button>
+    </div>
+  `);
+}
+
+/* ---------------------- My Chores (the placeable list) ---------------------- */
+function openRoutineSheet(){
+  let html = `<h2>My Chores</h2>`;
+  if(state.routine.length===0){
+    html += `<p class="empty-hint" style="margin-bottom:16px;">Nothing on your list yet.</p>`;
+  } else {
+    html += `<div class="routine-day">`;
+    state.routine.forEach(r=>{
+      html += `<div class="routine-item ${r.active?'':'inactive'}">
+        <span class="rtitle" data-act="edit-routine-item" data-id="${r.id}">${esc(r.title)}</span>
+        <span class="toggle ${r.active?'on':''}" data-act="toggle-routine-active" data-id="${r.id}"><span class="knob"></span></span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  html += `<button class="add-routine" data-act="add-routine-item">+ Add to my list</button>`;
+  openSheet(html);
+}
+function openRoutineItemSheet(existing){
+  sheetState = { routineId: existing? existing.id : null };
+  openSheet(`
+    <h2>${existing? 'Edit chore' : 'New chore'}</h2>
+    <div class="field"><div class="flabel">Title</div><input type="text" id="ri-title" value="${existing?esc(existing.title):''}"></div>
+    <div class="sheet-actions">
+      <button class="btn-main" data-act="save-routine-item">Save</button>
+      ${existing? `<button class="btn-plain danger" data-act="delete-routine-item" data-id="${existing.id}">Remove from list</button>` : ''}
+      <button class="btn-plain" data-act="back-to-routine">Back</button>
+    </div>
+  `);
+}
+
+/* ---------------------- event delegation ---------------------- */
+document.addEventListener('click', e=>{
+  const t = e.target.closest('[data-act], [data-pick]');
+  if(!t) return;
+  const act = t.getAttribute('data-act');
+  const pick = t.getAttribute('data-pick');
+
+  if(act){
+    switch(act){
+      case 'switch-section':
+        section = t.getAttribute('data-sec');
+        openNoteDay = null;
+        render();
+        break;
+      case 'edit-week': openEditWeekSheet(); break;
+      case 'save-week': saveWeekFromSheet(); break;
+      case 'open-routine': openRoutineSheet(); break;
+      case 'manage-chores': closeSheet(); openRoutineSheet(); break;
+      case 'back-to-routine': openRoutineSheet(); break;
+      case 'open-shopping': closeSheet(); section='shopping'; render(); break;
+      case 'shop-tab':
+        shopSectionTab = t.getAttribute('data-tab');
+        render();
+        break;
+      case 'toggle-selected': {
+        const id = t.getAttribute('data-id');
+        const cur = state.shopping.trip[id] || {selected:false, purchased:false};
+        cur.selected = !cur.selected;
+        if(!cur.selected) cur.purchased = false;
+        state.shopping.trip[id] = cur;
+        saveState();
+        render();
+        break;
+      }
+      case 'toggle-purchased': {
+        const cur = state.shopping.trip[t.getAttribute('data-id')];
+        if(cur){ cur.purchased = !cur.purchased; saveState(); }
+        render();
+        break;
+      }
+      case 'add-master-item': openMasterItemSheet(null); break;
+      case 'edit-master-item': {
+        const m = state.shopping.masterItems.find(x=>x.id===t.getAttribute('data-id'));
+        if(m) openMasterItemSheet(m);
+        break;
+      }
+      case 'save-master-item': {
+        const name = document.getElementById('mi-name').value.trim();
+        if(!name){ toast('Give it a name'); break; }
+        const category = document.getElementById('mi-category').value;
+        if(sheetState.editingMasterId){
+          const m = state.shopping.masterItems.find(x=>x.id===sheetState.editingMasterId);
+          m.name = name; m.category = category;
+        } else {
+          const maxSort = state.shopping.masterItems.reduce((mx,x)=>Math.max(mx,x.sortOrder||0),0);
+          state.shopping.masterItems.push({ id:uid(), name, category, active:true, sortOrder:maxSort+1 });
+        }
+        saveState();
+        closeSheet();
+        render();
+        break;
+      }
+      case 'delete-master-item': {
+        const id = t.getAttribute('data-id');
+        state.shopping.masterItems = state.shopping.masterItems.filter(x=>x.id!==id);
+        delete state.shopping.trip[id];
+        saveState();
+        closeSheet();
+        render();
+        break;
+      }
+      case 'finish-shopping':
+        openSheet(`
+          <h2>Clear this shopping trip?</h2>
+          <p style="font-size:13.5px; color:var(--ink-soft); margin-bottom:16px;">This clears what's selected and purchased. Your product list stays exactly as it is.</p>
+          <div class="sheet-actions">
+            <button class="btn-main" data-act="confirm-finish-shopping">Clear trip</button>
+            <button class="btn-plain" data-act="close-sheet">Cancel</button>
+          </div>
+        `);
+        break;
+      case 'confirm-finish-shopping':
+        state.shopping.trip = {};
+        saveState();
+        closeSheet();
+        render();
+        toast('Shopping trip cleared');
+        break;
+      case 'toggle-routine-active': {
+        const r = state.routine.find(x=>x.id===t.getAttribute('data-id'));
+        if(r){ r.active=!r.active; saveState(); }
+        openRoutineSheet();
+        break;
+      }
+      case 'edit-routine-item': {
+        const r = state.routine.find(x=>x.id===t.getAttribute('data-id'));
+        if(r) openRoutineItemSheet(r);
+        break;
+      }
+      case 'add-routine-item': openRoutineItemSheet(null); break;
+      case 'save-routine-item': {
+        const title = document.getElementById('ri-title').value.trim();
+        if(!title){ toast('Give it a title'); break; }
+        if(sheetState.routineId){
+          const r = state.routine.find(x=>x.id===sheetState.routineId);
+          r.title = title;
+        } else {
+          state.routine.push({ id:uid(), title, active:true });
+        }
+        saveState();
+        openRoutineSheet();
+        break;
+      }
+      case 'delete-routine-item':
+        state.routine = state.routine.filter(x=>x.id!==t.getAttribute('data-id'));
+        saveState();
+        openRoutineSheet();
+        break;
+      case 'toggle-note': {
+        const day = parseInt(t.getAttribute('data-day'),10);
+        openNoteDay = (openNoteDay===day) ? null : day;
+        render();
+        break;
+      }
+      case 'open-add-sheet': openAddSheet(parseInt(t.getAttribute('data-day'),10)); break;
+      case 'quick-add-confirm': confirmQuickAdd(); break;
+      case 'place-chore':
+        placeChore(t.getAttribute('data-id'), sheetState.addDay);
+        closeSheet(); render(); toast('Added');
+        break;
+      case 'toggle-task':
+        toggleTask(t.getAttribute('data-id'));
+        render();
+        break;
+      case 'toggle-training':
+        toggleTrainingDone(t.getAttribute('data-id'));
+        render();
+        break;
+      case 'task-action': {
+        const task = state.currentWeek.tasks.find(x=>x.id===t.getAttribute('data-id'));
+        if(task) openTaskActionSheet(task);
+        break;
+      }
+      case 'edit-task-full': {
+        const task = state.currentWeek.tasks.find(x=>x.id===t.getAttribute('data-id'));
+        if(task) openTaskSheet(task);
+        break;
+      }
+      case 'save-task': saveTaskFromSheet(); break;
+      case 'delete-task-flow':
+        deleteTask(t.getAttribute('data-id')); closeSheet(); render(); toast('Deleted');
+        break;
+      case 'training-action': openTrainingActionSheet(t.getAttribute('data-id')); break;
+      case 'train-this-week': {
+        const tr = state.currentWeek.training.find(x=>x.id===sheetState.moveTrainingId);
+        if(tr) tr.day = sheetState.moveDay;
+        saveState(); closeSheet(); render(); toast('Moved this week');
+        break;
+      }
+      case 'train-change-default': {
+        const tr = state.currentWeek.training.find(x=>x.id===sheetState.moveTrainingId);
+        if(tr){
+          const tpl = state.template.training.find(x=>x.id===tr.tplId);
+          if(tpl) tpl.day = sheetState.moveDay;
+          tr.day = sheetState.moveDay;
+        }
+        saveState(); closeSheet(); render(); toast('Default schedule updated');
+        break;
+      }
+      case 'work-action': openWorkSheet(parseInt(t.getAttribute('data-day'),10)); break;
+      case 'toggle-work-today': {
+        const day = sheetState.workDay;
+        const exists = state.currentWeek.fixed.find(f=>f.day===day);
+        if(exists){ state.currentWeek.fixed = state.currentWeek.fixed.filter(f=>f.day!==day); }
+        else { const w=state.template.work; state.currentWeek.fixed.push({id:uid(), day, label:'Work', start:w.start, end:w.end}); }
+        saveState(); closeSheet(); render(); toast('Updated for this week');
+        break;
+      }
+      case 'open-edit-week-from-work': closeSheet(); openEditWeekSheet(); break;
+      case 'close-sheet': closeSheet(); break;
+    }
+  }
+
+  if(pick){
+    const group = t.parentElement;
+    switch(pick){
+      case 'importance':
+        sheetState.importance = t.getAttribute('data-val');
+        Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
+        break;
+      case 'duration':
+        sheetState.duration = parseInt(t.getAttribute('data-val'),10);
+        Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
+        break;
+      case 'day':
+        sheetState.day = parseInt(t.getAttribute('data-val'),10);
+        Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
+        break;
+      case 'workday': {
+        const v = parseInt(t.getAttribute('data-val'),10);
+        const i = sheetState.workDays.indexOf(v);
+        if(i>-1) sheetState.workDays.splice(i,1); else sheetState.workDays.push(v);
+        t.classList.toggle('sel');
+        break;
+      }
+      case 'trday': {
+        const idx = parseInt(t.getAttribute('data-idx'),10);
+        const v = parseInt(t.getAttribute('data-val'),10);
+        sheetState.trainingDays[idx] = v;
+        Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
+        break;
+      }
+      case 'movetarget': {
+        const val = parseInt(t.getAttribute('data-val'),10);
+        moveTask(sheetState.moveTaskId, val);
+        closeSheet(); render(); toast('Moved');
+        break;
+      }
+      case 'movetrain': {
+        const tr = state.currentWeek.training.find(x=>x.id===sheetState.moveTrainingId);
+        const val = parseInt(t.getAttribute('data-val'),10);
+        if(val===tr.day){ closeSheet(); break; }
+        openTrainMoveConfirm(tr.id, val);
+        break;
+      }
+    }
+  }
+});
+
+/* ---------------------- init ---------------------- */
+loadState();
+render();
+</script>
+</body>
+</html>
