@@ -180,7 +180,13 @@
   .routine-day{margin-bottom:22px;}
   .routine-day h4{font-family:var(--font-head); font-size:14.5px; color:var(--ink-faint); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; font-weight:700;}
   .chore-pick{display:flex; flex-direction:column; margin-bottom:6px;}
-  .chore-row{text-align:left; padding:12px 0; border-top:1px solid var(--line); font-size:18px; color:var(--ink); width:100%;}
+  .chore-row{
+    display:flex; flex-direction:column; align-items:flex-start; text-align:left;
+    padding:12px 0; border-top:1px solid var(--line); width:100%;
+  }
+  .chore-row .chore-title{font-size:18px; color:var(--ink);}
+  .chore-row .chore-freq{font-size:13px; color:var(--ink-faint); margin-top:2px;}
+  .chore-row.not-due .chore-title{color:var(--ink-soft);}
   .chore-row:first-child{border-top:none;}
 
   /* ---------- Shopping list ---------- */
@@ -220,14 +226,17 @@
   .month-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
   .month-grid.dow{margin-bottom:8px;}
   .month-dow{text-align:center; font-family:var(--font-head); font-size:13px; color:var(--ink-faint); font-weight:700;}
-  .month-cell{aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:10px;}
-  .month-cell.empty{visibility:hidden;}
+  .month-cell{aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border-radius:10px; cursor:pointer;}
+  .month-cell.empty{visibility:hidden; cursor:default;}
   .month-cell .num{font-size:16px; color:var(--ink);}
   .month-cell.today{background:var(--training);}
   .month-cell.today .num{color:var(--training-ink); font-weight:700;}
   .month-cell.thisweek:not(.today){background:var(--home-soft);}
-  .month-cell .dot{width:6px; height:6px; border-radius:50%; background:var(--training-strong);}
-  .month-cell.today .dot{background:var(--training-ink);}
+  .month-cell .dots{display:flex; gap:3px; height:6px;}
+  .month-cell .dot{width:6px; height:6px; border-radius:50%;}
+  .month-cell .dot-train{background:var(--training-strong);}
+  .month-cell .dot-note{background:var(--ink-soft);}
+  .month-cell.today .dot-train, .month-cell.today .dot-note{background:var(--training-ink);}
   .routine-item{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-top:1px solid var(--line); font-size:17px;}
   .routine-item:first-child{border-top:none;}
   .routine-item.inactive .rtitle{color:var(--ink-faint); text-decoration:line-through;}
@@ -274,6 +283,13 @@ const DEFAULT_CHORES = [
   'Food shopping','Cleaning','Vitamin top-up','Call Brother','Vitamin check-in','Call Friend'
 ];
 
+const CHORE_FREQUENCIES = [
+  {k:'weekly',   label:'Weekly',        days:0},
+  {k:'biweekly', label:'Every 2 weeks', days:14},
+  {k:'monthly',  label:'Every month',   days:28}
+];
+function freqMeta(k){ return CHORE_FREQUENCIES.find(f=>f.k===k) || CHORE_FREQUENCIES[0]; }
+
 const SHOP_CATEGORIES = [
   {key:'produce',   label:'Produce / Fresh'},
   {key:'protein',   label:'Protein / Refrigerated'},
@@ -300,6 +316,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 function fmtMin(m){ if(!m) return ''; if(m<60) return m+' min'; const h=Math.floor(m/60), r=m%60; return r?(h+'h '+r+'m'):(h+'h'); }
 function mondayOfWeek(){ const now=new Date(); const idx=todayIndex(); const d=new Date(now); d.setDate(now.getDate()-idx); d.setHours(0,0,0,0); return d; }
 function dateForDay(day){ const mon=mondayOfWeek(); const d=new Date(mon); d.setDate(mon.getDate()+day); return d; }
+function dateKey(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 function weekRangeLabel(){
   const mon=mondayOfWeek(); const sun=new Date(mon); sun.setDate(mon.getDate()+6);
   const mMon=mon.toLocaleString('en-US',{month:'short'}).toUpperCase();
@@ -314,7 +331,7 @@ function ensureTemplateIds(template){
   template.training.forEach(t=>{ if(!t.id) t.id = uid(); });
 }
 function makeDefaultChores(){
-  return DEFAULT_CHORES.map(title=>({ id:uid(), title, active:true }));
+  return DEFAULT_CHORES.map(title=>({ id:uid(), title, active:true, frequency:'weekly', lastPlacedWeek:null }));
 }
 function makeDefaultShoppingList(){
   let sort=0; const items=[];
@@ -327,7 +344,7 @@ function genFixed(t){ return t.work.days.map(d=>({id:uid(), day:d, label:'Work',
 function genTraining(t){ return t.training.map(x=>({id:uid(), tplId:x.id, day:x.day, label:x.label, duration:x.duration, completed:false})); }
 function buildWeek(monday, carryTasks){
   return { weekStart:monday, fixed:genFixed(state.template), training:genTraining(state.template),
-    tasks:[...(carryTasks||[])], notes:{} };
+    tasks:[...(carryTasks||[])] };
 }
 
 function migrateFromV1(){
@@ -354,16 +371,33 @@ function loadState(){
   if(!state.template) state.template = JSON.parse(JSON.stringify(DEFAULT_TEMPLATE));
   ensureTemplateIds(state.template);
 
+  // notes: persistent, keyed by real calendar date — survives week rollovers
+  if(!state.notes) state.notes = {};
+  if(state.currentWeek && state.currentWeek.notes && Object.keys(state.currentWeek.notes).length){
+    const baseMonday = state.currentWeek.weekStart ? new Date(state.currentWeek.weekStart+'T00:00:00') : mondayOfWeek();
+    Object.keys(state.currentWeek.notes).forEach(idxStr=>{
+      const idx = parseInt(idxStr,10);
+      const d = new Date(baseMonday); d.setDate(baseMonday.getDate()+idx);
+      const key = dateKey(d);
+      if(!(key in state.notes)) state.notes[key] = state.currentWeek.notes[idxStr];
+    });
+  }
+  if(state.currentWeek) delete state.currentWeek.notes;
+
   // chores: a flat, placeable list — no day, no auto-generation
   if(!state.routine) state.routine = makeDefaultChores();
-  else state.routine = state.routine.map(r=>({ id:r.id||uid(), title:r.title, active:r.active!==false }));
+  else state.routine = state.routine.map(r=>({
+    id:r.id||uid(), title:r.title, active:r.active!==false,
+    frequency: ['biweekly','monthly'].includes(r.frequency) ? r.frequency : 'weekly',
+    lastPlacedWeek: r.lastPlacedWeek || null
+  }));
 
   // shopping: a permanent master list + one active trip (selected/purchased), independent of weekly reset
   if(!state.shopping) state.shopping = { masterItems: makeDefaultShoppingList(), trip: {} };
   if(!state.shopping.masterItems) state.shopping.masterItems = makeDefaultShoppingList();
   if(!state.shopping.trip) state.shopping.trip = {};
 
-  const thisMonday = mondayOfWeek().toISOString().slice(0,10);
+  const thisMonday = dateKey(mondayOfWeek());
   if(!state.currentWeek){
     state.currentWeek = buildWeek(thisMonday, []);
   } else if(!('weekStart' in state.currentWeek)){
@@ -373,8 +407,6 @@ function loadState(){
   } else if(state.currentWeek.weekStart !== thisMonday){
     // a real new week — anchors regenerate; placed chores and one-offs don't carry, you place fresh from the list
     state.currentWeek = buildWeek(thisMonday, []);
-  } else if(!state.currentWeek.notes){
-    state.currentWeek.notes = {};
   }
   saveState();
 }
@@ -418,20 +450,40 @@ function placeChore(choreId, day){
     id:uid(), routineId:c.id, title:c.title, day, completed:false, source:'routine',
     importance:'should', duration:null, time:null, category:null, notes:'', createdAt:Date.now()
   });
+  if(c.frequency && c.frequency!=='weekly') c.lastPlacedWeek = state.currentWeek.weekStart;
   saveState();
+}
+function isChoreDue(chore){
+  const meta = freqMeta(chore.frequency);
+  if(meta.days===0) return true;
+  if(!chore.lastPlacedWeek) return true;
+  const last = new Date(chore.lastPlacedWeek+'T00:00:00');
+  const cur = new Date(state.currentWeek.weekStart+'T00:00:00');
+  const diffDays = Math.round((cur-last)/86400000);
+  return diffDays >= meta.days;
+}
+function choreFreqNote(chore){
+  const meta = freqMeta(chore.frequency);
+  if(meta.days===0) return '';
+  if(isChoreDue(chore)) return meta.label;
+  const last = new Date(chore.lastPlacedWeek+'T00:00:00');
+  const nextDue = new Date(last); nextDue.setDate(last.getDate()+meta.days);
+  const label = nextDue.toLocaleString('en-US',{month:'short', day:'numeric'});
+  return `${meta.label} · next due ${label}`;
 }
 function updateTask(id, patch){ const t=state.currentWeek.tasks.find(x=>x.id===id); if(t) Object.assign(t,patch); saveState(); }
 function toggleTask(id){ const t=state.currentWeek.tasks.find(x=>x.id===id); if(t) t.completed=!t.completed; saveState(); }
 function moveTask(id, day){ updateTask(id, {day}); }
 function deleteTask(id){ state.currentWeek.tasks = state.currentWeek.tasks.filter(x=>x.id!==id); saveState(); }
 function toggleTrainingDone(id){ const t=state.currentWeek.training.find(x=>x.id===id); if(t) t.completed=!t.completed; saveState(); }
-function setNote(day, text){ state.currentWeek.notes[day]=text; saveState(); }
+function setNote(dateStr, text){ state.notes[dateStr]=text; saveState(); }
 
 /* ---------------------- view state ---------------------- */
 let section = 'today';
 let openNoteDay = null;
 let editingTaskId = null;
 let sheetState = {};
+let openDayDetail = null;
 
 let toastTimer=null;
 function toast(msg){
@@ -442,7 +494,8 @@ function openSheet(html){
   document.getElementById('sheetContent').innerHTML = '<div class="grip"></div>'+html;
   document.getElementById('sheetOverlay').classList.add('open');
 }
-function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); editingTaskId=null; }
+function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); editingTaskId=null; openDayDetail=null; }
+function refreshOpenSheet(){ if(openDayDetail) renderDayDetailSheet(openDayDetail); }
 document.getElementById('sheetOverlay').addEventListener('click', e=>{ if(e.target.id==='sheetOverlay') closeSheet(); });
 
 /* ---------------------- render: header ---------------------- */
@@ -500,9 +553,10 @@ function renderDay(day){
   const trainings = trainingForDay(day);
   const tasks = tasksForDay(day).sort((a,b)=>a.completed-b.completed);
   const date = dateForDay(day);
+  const dkey = dateKey(date);
 
   let head = `
-    <div class="day-head" data-act="toggle-note" data-day="${day}">
+    <div class="day-head" data-act="toggle-note" data-date="${dkey}">
       <div>
         <span class="name">${DAY_NAMES[day]}</span><span class="date">${date.getDate()}</span>
         ${eyebrow? `<div class="eyebrow">${eyebrow}</div>` : ''}
@@ -537,11 +591,11 @@ function renderDay(day){
   const addHtml = `<div class="add-row"><button data-act="open-add-sheet" data-day="${day}">Add</button></div>`;
 
   let noteHtml = '';
-  const note = state.currentWeek.notes[day];
-  if(openNoteDay===day){
-    noteHtml = `<div class="note-box"><textarea class="note-input" data-day="${day}" placeholder="Note for the day…">${esc(note||'')}</textarea></div>`;
+  const note = state.notes[dkey];
+  if(openNoteDay===dkey){
+    noteHtml = `<div class="note-box"><textarea class="note-input" data-date="${dkey}" placeholder="Note for the day…">${esc(note||'')}</textarea></div>`;
   } else if(note){
-    noteHtml = `<div class="note-toggle" data-act="toggle-note" data-day="${day}">${esc(note)}</div>`;
+    noteHtml = `<div class="note-toggle" data-act="toggle-note" data-date="${dkey}">${esc(note)}</div>`;
   }
 
   return `<div class="day p-${p}">
@@ -557,10 +611,12 @@ function renderDay(day){
 function renderNotesSection(){
   let html = '';
   for(let d=0; d<7; d++){
-    const note = state.currentWeek.notes[d] || '';
+    const date = dateForDay(d);
+    const dkey = dateKey(date);
+    const note = state.notes[dkey] || '';
     html += `<div class="day">
-      <div class="day-head"><div><span class="name">${DAY_NAMES[d]}</span></div></div>
-      <div class="note-box"><textarea class="note-input" data-day="${d}" placeholder="Note for ${DAY_NAMES[d]}…">${esc(note)}</textarea></div>
+      <div class="day-head"><div><span class="name">${DAY_NAMES[d]}</span><span class="date">${date.getDate()}</span></div></div>
+      <div class="note-box"><textarea class="note-input" data-date="${dkey}" placeholder="Note for ${DAY_NAMES[d]}…">${esc(note)}</textarea></div>
     </div>`;
   }
   return html;
@@ -582,19 +638,25 @@ function renderMonthSection(){
   for(let i=0;i<firstWeekday;i++) cells += `<div class="month-cell empty"></div>`;
   for(let day=1; day<=daysInMonth; day++){
     const cellDate = new Date(year, month, day);
+    const cKey = dateKey(cellDate);
     const weekday = (cellDate.getDay()+6)%7;
     const isToday = cellDate.getTime()===todayDate.getTime();
     const inCurrentWeek = cellDate>=monday && cellDate<=sunday;
     const isTraining = trainingWeekdays.has(weekday);
-    cells += `<div class="month-cell ${isToday?'today':''} ${inCurrentWeek?'thisweek':''}">
+    const hasNote = !!(state.notes[cKey] && state.notes[cKey].trim());
+    cells += `<div class="month-cell ${isToday?'today':''} ${inCurrentWeek?'thisweek':''}" data-act="open-day" data-date="${cKey}">
       <span class="num">${day}</span>
-      ${isTraining? `<span class="dot"></span>` : ''}
+      <span class="dots">
+        ${isTraining? `<span class="dot dot-train"></span>` : ''}
+        ${hasNote? `<span class="dot dot-note"></span>` : ''}
+      </span>
     </div>`;
   }
   const dowRow = DAY_SHORT.map(d=>`<div class="month-dow">${d[0]}</div>`).join('');
   return `<div class="month-wrap">
     <div class="month-grid dow">${dowRow}</div>
     <div class="month-grid">${cells}</div>
+    <p class="empty-hint" style="margin-top:16px;">Tap any date to see that day, or leave it a note.</p>
   </div>`;
 }
 
@@ -609,7 +671,7 @@ function render(){
 
   document.getElementById('app').innerHTML = html;
   document.querySelectorAll('.note-input').forEach(el=>{
-    el.addEventListener('blur', ()=> setNote(parseInt(el.dataset.day,10), el.value));
+    el.addEventListener('blur', ()=> setNote(el.dataset.date, el.value));
   });
   const shopSearchInput = document.getElementById('shopSearch');
   if(shopSearchInput){
@@ -624,7 +686,8 @@ function render(){
 function openAddSheet(day){
   sheetState = { addDay: day };
   const placedIds = new Set(tasksForDay(day).filter(t=>t.routineId).map(t=>t.routineId));
-  const available = state.routine.filter(r=>r.active && !placedIds.has(r.id));
+  const available = state.routine.filter(r=>r.active && !placedIds.has(r.id))
+    .sort((a,b)=> (isChoreDue(a)===isChoreDue(b)) ? 0 : (isChoreDue(a) ? -1 : 1));
 
   openSheet(`
     <h2>Add to ${DAY_NAMES[day]}</h2>
@@ -635,7 +698,13 @@ function openAddSheet(day){
     ${available.length? `
       <div class="flabel" style="margin-bottom:4px;">FROM YOUR LIST</div>
       <div class="chore-pick">
-        ${available.map(r=>`<button class="chore-row" data-act="place-chore" data-id="${r.id}">${esc(r.title)}</button>`).join('')}
+        ${available.map(r=>{
+          const note = choreFreqNote(r);
+          return `<button class="chore-row ${note && !isChoreDue(r) ? 'not-due' : ''}" data-act="place-chore" data-id="${r.id}">
+            <span class="chore-title">${esc(r.title)}</span>
+            ${note? `<span class="chore-freq">${note}</span>` : ''}
+          </button>`;
+        }).join('')}
       </div>
     ` : ''}
     <button class="add-routine" data-act="manage-chores" style="margin-top:18px;">Manage my list</button>
@@ -649,7 +718,62 @@ function confirmQuickAdd(){
   const title = input ? input.value.trim() : '';
   if(!title) return;
   addTask({title, day: sheetState.addDay});
-  closeSheet(); render(); toast('Added');
+  if(openDayDetail){ refreshOpenSheet(); } else { closeSheet(); }
+  render(); toast('Added');
+}
+
+/* ---------------------- day detail (from the Month calendar) ---------------------- */
+function renderDayDetailSheet(dateStr){
+  openDayDetail = dateStr;
+  const d = new Date(dateStr+'T00:00:00');
+  const monday = mondayOfWeek(); const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  const inWeek = d>=monday && d<=sunday;
+  const label = d.toLocaleString('en-US',{weekday:'long', month:'long', day:'numeric'});
+  const note = state.notes[dateStr] || '';
+
+  let body = `<h2>${label}</h2>`;
+
+  if(inWeek){
+    const dayIdx = Math.round((d - monday)/86400000);
+    const work = fixedForDay(dayIdx)[0];
+    const trainings = trainingForDay(dayIdx);
+    const tasks = tasksForDay(dayIdx).sort((a,b)=>a.completed-b.completed);
+
+    body += work? `<div class="work-line" data-act="work-action" data-day="${dayIdx}">${work.start}–${work.end} Work</div>` : '';
+    body += trainings.map(t=>`
+      <div class="train-block ${t.completed?'done':''}">
+        <span class="check" data-act="toggle-training" data-id="${t.id}">✓</span>
+        <span class="label" data-act="training-action" data-id="${t.id}">${esc(t.label)}</span>
+        <span class="time">${fmtMin(t.duration)}</span>
+      </div>`).join('');
+    body += `<div class="tasks">` + tasks.map(t=>{
+      let sub = '';
+      if(isShoppingTask(t)){
+        const prog = shoppingProgress();
+        if(prog.total>0) sub = (prog.done===prog.total) ? `${prog.done} / ${prog.total} ✓` : `${prog.total} item${prog.total===1?'':'s'}`;
+      }
+      return `<div class="task-row ${t.completed?'done':''} ${t.importance==='must'?'must':''}">
+        <span class="mark" data-act="toggle-task" data-id="${t.id}">✓</span>
+        <div class="task-main" data-act="task-action" data-id="${t.id}">
+          <span class="ttl">${esc(t.title)}${t.source==='routine'?' <span class="recur">↻</span>':''}</span>
+          ${sub? `<div class="task-sub">${sub}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+    body += `<div class="add-row"><button data-act="open-add-sheet" data-day="${dayIdx}">Add</button></div>`;
+  } else {
+    body += `<p style="font-size:15.5px; color:var(--ink-soft); margin:4px 0 16px 0;">Outside the current week — WeekFlow only tracks tasks for this week, but a note here will keep for whenever you look back.</p>`;
+  }
+
+  body += `<div class="field" style="margin-top:20px;"><div class="flabel">Note</div>
+    <div class="note-box"><textarea class="note-input" data-date="${dateStr}" placeholder="Note for this day…">${esc(note)}</textarea></div>
+  </div>`;
+  body += `<button class="btn-plain" data-act="close-sheet" style="margin-top:10px;">Done</button>`;
+
+  openSheet(body);
+  document.querySelectorAll('#sheetOverlay .note-input').forEach(el=>{
+    el.addEventListener('blur', ()=> setNote(el.dataset.date, el.value));
+  });
 }
 
 /* ---------------------- task move / delete / edit ---------------------- */
@@ -872,8 +996,9 @@ function openRoutineSheet(){
   } else {
     html += `<div class="routine-day">`;
     state.routine.forEach(r=>{
+      const note = choreFreqNote(r);
       html += `<div class="routine-item ${r.active?'':'inactive'}">
-        <span class="rtitle" data-act="edit-routine-item" data-id="${r.id}">${esc(r.title)}</span>
+        <span class="rtitle" data-act="edit-routine-item" data-id="${r.id}">${esc(r.title)}${note? `<div class="chore-freq">${note}</div>` : ''}</span>
         <span class="toggle ${r.active?'on':''}" data-act="toggle-routine-active" data-id="${r.id}"><span class="knob"></span></span>
       </div>`;
     });
@@ -883,10 +1008,13 @@ function openRoutineSheet(){
   openSheet(html);
 }
 function openRoutineItemSheet(existing){
-  sheetState = { routineId: existing? existing.id : null };
+  sheetState = { routineId: existing? existing.id : null, frequency: existing? existing.frequency : 'weekly' };
+  const freqList = CHORE_FREQUENCIES
+    .map(f=>`<span data-pick="frequency" data-val="${f.k}" class="${sheetState.frequency===f.k?'sel':''}">${f.label}</span>`).join('');
   openSheet(`
     <h2>${existing? 'Edit chore' : 'New chore'}</h2>
     <div class="field"><div class="flabel">Title</div><input type="text" id="ri-title" value="${existing?esc(existing.title):''}"></div>
+    <div class="field"><div class="flabel">How often</div><div class="picklist">${freqList}</div></div>
     <div class="sheet-actions">
       <button class="btn-main" data-act="save-routine-item">Save</button>
       ${existing? `<button class="btn-plain danger" data-act="delete-routine-item" data-id="${existing.id}">Remove from list</button>` : ''}
@@ -909,6 +1037,7 @@ document.addEventListener('click', e=>{
         openNoteDay = null;
         render();
         break;
+      case 'open-day': renderDayDetailSheet(t.getAttribute('data-date')); break;
       case 'edit-week': openEditWeekSheet(); break;
       case 'save-week': saveWeekFromSheet(); break;
       case 'open-routine': openRoutineSheet(); break;
@@ -998,11 +1127,13 @@ document.addEventListener('click', e=>{
       case 'save-routine-item': {
         const title = document.getElementById('ri-title').value.trim();
         if(!title){ toast('Give it a title'); break; }
+        const frequency = ['biweekly','monthly'].includes(sheetState.frequency) ? sheetState.frequency : 'weekly';
         if(sheetState.routineId){
           const r = state.routine.find(x=>x.id===sheetState.routineId);
           r.title = title;
+          if(r.frequency!==frequency){ r.frequency = frequency; r.lastPlacedWeek = null; }
         } else {
-          state.routine.push({ id:uid(), title, active:true });
+          state.routine.push({ id:uid(), title, active:true, frequency, lastPlacedWeek:null });
         }
         saveState();
         openRoutineSheet();
@@ -1014,8 +1145,8 @@ document.addEventListener('click', e=>{
         openRoutineSheet();
         break;
       case 'toggle-note': {
-        const day = parseInt(t.getAttribute('data-day'),10);
-        openNoteDay = (openNoteDay===day) ? null : day;
+        const dateStr = t.getAttribute('data-date');
+        openNoteDay = (openNoteDay===dateStr) ? null : dateStr;
         render();
         break;
       }
@@ -1023,14 +1154,17 @@ document.addEventListener('click', e=>{
       case 'quick-add-confirm': confirmQuickAdd(); break;
       case 'place-chore':
         placeChore(t.getAttribute('data-id'), sheetState.addDay);
-        closeSheet(); render(); toast('Added');
+        if(openDayDetail){ refreshOpenSheet(); } else { closeSheet(); }
+        render(); toast('Added');
         break;
       case 'toggle-task':
         toggleTask(t.getAttribute('data-id'));
+        refreshOpenSheet();
         render();
         break;
       case 'toggle-training':
         toggleTrainingDone(t.getAttribute('data-id'));
+        refreshOpenSheet();
         render();
         break;
       case 'task-action': {
@@ -1083,6 +1217,10 @@ document.addEventListener('click', e=>{
     switch(pick){
       case 'importance':
         sheetState.importance = t.getAttribute('data-val');
+        Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
+        break;
+      case 'frequency':
+        sheetState.frequency = t.getAttribute('data-val');
         Array.from(group.children).forEach(c=>c.classList.remove('sel')); t.classList.add('sel');
         break;
       case 'duration':
